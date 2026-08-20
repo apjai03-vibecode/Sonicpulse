@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SonicPulse // Acoustic Telemetry & Command Center</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Custom styles -->
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body class="min-h-screen">
+
+  <!-- ============================== HEADER ============================== -->
+  <header class="sp-panel mx-4 mt-4 rounded-2xl">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:rgba(0,229,255,0.1); border:1px solid var(--sp-cyan-dim);">
+          <i data-lucide="audio-lines" class="w-5 h-5" style="color:var(--sp-cyan);"></i>
+        </div>
+        <div>
+          <h1 class="font-display font-700 text-base sm:text-lg tracking-tight sp-glow-cyan">
+            SonicPulse <span class="text-sp-muted font-normal" style="color:var(--sp-muted);">// Urban Acoustic Intelligence Platform</span>
+          </h1>
+          <p class="sp-eyebrow mt-0.5">SMART CITIES · ACOUSTIC TELEMETRY GRID · CHENNAI METRO</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-5 font-mono text-xs">
+        <div class="flex items-center gap-2">
+          <span class="sp-status-dot"></span>
+          <span class="tracking-wide" style="color:var(--sp-calm);">SYSTEM ACTIVE</span>
+        </div>
+        <div class="hidden sm:flex flex-col items-end leading-tight">
+          <span style="color:var(--sp-muted);">LOCAL TIME</span>
+          <span id="sp-clock" class="sp-glow-cyan" style="color:var(--sp-cyan);">--:--:--</span>
+        </div>
+        <div class="hidden sm:flex flex-col items-end leading-tight">
+          <span style="color:var(--sp-muted);">TELEMETRY NODES</span>
+          <span id="sp-node-count" style="color:var(--sp-text);">00</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================== MAIN GRID ============================== -->
+  <main class="sp-grid grid gap-4 p-4" style="grid-template-columns: 420px 1fr;">
+
+    <!-- ========================= LEFT PANEL ========================= -->
+    <section class="flex flex-col gap-4 min-w-0">
+
+      <!-- Mode switcher + capture -->
+      <div class="sp-panel p-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="sp-eyebrow">ACOUSTIC INGESTION</span>
+          <i data-lucide="radio" class="w-3.5 h-3.5" style="color:var(--sp-muted);"></i>
+        </div>
+
+        <div class="flex gap-2 mb-4">
+          <button id="sp-mode-mic" class="sp-mode-btn active">
+            <i data-lucide="mic" class="w-4 h-4"></i> Live Mic Stream
+          </button>
+          <button id="sp-mode-file" class="sp-mode-btn">
+            <i data-lucide="folder-up" class="w-4 h-4"></i> Ingest Audio File
+          </button>
+        </div>
+
+        <!-- Mic panel -->
+        <div id="sp-mic-panel" class="flex flex-col items-center gap-3">
+          <canvas id="sp-waveform-canvas"></canvas>
+          <div class="flex items-center gap-4 mt-1">
+            <button id="sp-record-btn" class="sp-record-btn" aria-label="Start recording">
+              <i data-lucide="mic" class="w-6 h-6 text-white"></i>
+            </button>
+            <div class="font-mono text-xs" style="color:var(--sp-muted);">
+              <div id="sp-record-state">STANDBY</div>
+              <div id="sp-record-timer" class="sp-glow-cyan" style="color:var(--sp-cyan);">00:00.0</div>
+            </div>
+          </div>
+          <!-- GPS Status Pill for Live Recording -->
+          <div id="sp-gps-status" class="w-full text-center font-mono text-[0.68rem] py-1 px-2.5 rounded-lg border border-slate-700/50 bg-slate-900/60 text-cyan-400 flex items-center justify-center gap-1.5">
+            <i data-lucide="navigation" class="w-3 h-3 text-cyan-400"></i>
+            <span id="sp-gps-text">GPS: Ready for Browser Geolocation</span>
+          </div>
+        </div>
+
+        <!-- File panel -->
+        <div id="sp-file-panel" class="hidden flex-col gap-2">
+          <!-- File Location Picker Controls -->
+          <div class="flex flex-col gap-2 p-2.5 rounded-xl border border-slate-800 bg-slate-900/50 text-xs">
+            <span class="sp-eyebrow text-[0.65rem]">ASSIGN INCIDENT LOCATION</span>
+            <div class="flex gap-2">
+              <button id="sp-loc-gps-btn" class="flex-1 py-1.5 px-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 transition flex items-center justify-center gap-1 font-mono text-[0.7rem] text-cyan-300">
+                <i data-lucide="crosshair" class="w-3 h-3"></i> Use My GPS
+              </button>
+              <button id="sp-loc-map-btn" class="flex-1 py-1.5 px-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 transition flex items-center justify-center gap-1 font-mono text-[0.7rem] text-cyan-300">
+                <i data-lucide="map-pin" class="w-3 h-3"></i> Pick on Map
+              </button>
+            </div>
+            <!-- Manual Area Search -->
+            <div class="flex gap-1.5">
+              <input id="sp-loc-input" type="text" placeholder="Type area (e.g. West Mambalam, T. Nagar)..." class="flex-1 bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1 text-[0.72rem] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono" />
+              <button id="sp-loc-search-btn" class="px-2.5 py-1 rounded-lg border border-cyan-500/50 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 font-mono text-[0.7rem] flex items-center gap-1 transition">
+                <i data-lucide="search" class="w-3 h-3"></i> Set Area
+              </button>
+            </div>
+            <div id="sp-file-location-badge" class="font-mono text-[0.65rem] text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 rounded px-2 py-1 flex items-center gap-1">
+              <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-400"></i>
+              <span id="sp-file-location-text">Location: Default (Chennai Core)</span>
+            </div>
+          </div>
+
+          <div id="sp-dropzone" class="sp-dropzone flex flex-col items-center justify-center gap-2 py-6 px-4 text-center">
+            <i data-lucide="upload-cloud" class="w-7 h-7" style="color:var(--sp-cyan);"></i>
+            <p class="text-sm" style="color:var(--sp-text);">Drop a <span class="font-mono">.wav</span> or <span class="font-mono">.mp3</span> file here</p>
+            <p class="text-xs" style="color:var(--sp-muted);">or click to browse from disk</p>
+            <input id="sp-file-input" type="file" accept=".wav,.mp3,audio/*" class="hidden" />
+          </div>
+          <div id="sp-file-name" class="text-xs font-mono hidden" style="color:var(--sp-cyan);"></div>
+        </div>
+      </div>
+
+      <!-- Diagnostic output -->
+      <div class="sp-panel p-4 flex-1">
+        <div class="flex items-center justify-between mb-3">
+          <span class="sp-eyebrow">NEURAL DIAGNOSTIC OUTPUT</span>
+          <i data-lucide="brain-circuit" class="w-3.5 h-3.5" style="color:var(--sp-muted);"></i>
+        </div>
+
+        <div id="sp-banner" class="sp-banner sp-banner-idle mb-4">
+          <div class="text-[0.65rem] tracking-widest opacity-70 mb-0.5">CLASSIFICATION</div>
+          <div id="sp-banner-text" class="text-sm font-semibold">AWAITING ACOUSTIC INPUT…</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <!-- Stress dial -->
+          <div class="flex flex-col items-center">
+            <div class="sp-dial-wrap">
+              <svg viewBox="0 0 168 168" width="168" height="168">
+                <circle class="sp-dial-track" cx="84" cy="84" r="72" stroke-width="10"/>
+                <circle id="sp-dial-value" class="sp-dial-value" cx="84" cy="84" r="72" stroke-width="10"
+                        stroke-dasharray="452.4" stroke-dashoffset="452.4"
+                        transform="rotate(-90 84 84)"/>
+              </svg>
+              <div class="sp-dial-center">
+                <span id="sp-dial-score" class="font-mono text-2xl font-bold" style="color:var(--sp-text);">--</span>
+                <span class="sp-eyebrow mt-0.5">STRESS IDX</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- dBFS + confidence -->
+          <div class="flex flex-col justify-center gap-3">
+            <div>
+              <div class="sp-eyebrow mb-1">PEAK dBFS</div>
+              <div id="sp-dbfs" class="font-mono text-xl font-bold" style="color:var(--sp-cyan);">-- dB</div>
+            </div>
+            <div>
+              <div class="sp-eyebrow mb-1">CONFIDENCE</div>
+              <div class="w-full h-1.5 rounded-full overflow-hidden" style="background:rgba(123,138,158,0.15);">
+                <div id="sp-confidence-bar" class="h-full rounded-full" style="width:0%; background:var(--sp-cyan); transition: width 0.5s ease;"></div>
+              </div>
+              <div id="sp-confidence-val" class="font-mono text-xs mt-1" style="color:var(--sp-muted);">0%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top-3 classes -->
+        <div>
+          <div class="sp-eyebrow mb-2">TOP-3 CLASS PROBABILITIES</div>
+          <div style="height:140px;">
+            <canvas id="sp-class-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================= RIGHT PANEL ========================= -->
+    <section class="flex flex-col gap-4 min-w-0">
+
+      <!-- Map panel -->
+      <div class="sp-panel flex flex-col overflow-hidden" style="height:520px;">
+        <div class="sp-panel-header">
+          <div class="flex items-center gap-2">
+            <span class="sp-eyebrow">GEOSPATIAL ACOUSTIC MAP</span>
+            <i data-lucide="map" class="w-3.5 h-3.5" style="color:var(--sp-muted);"></i>
+          </div>
+          <div class="sp-view-toggle">
+            <span class="sp-view-btn active" data-view="heatmap">Heatmap</span>
+            <span class="sp-view-btn" data-view="cluster">Events</span>
+            <span class="sp-view-btn" data-view="zoning">Zoning</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 px-4 py-2 overflow-x-auto sp-scroll-thin" style="max-height:none;">
+          <span class="sp-chip active" data-zone="all">All Zones</span>
+          <span class="sp-chip" data-zone="hospital">🏥 Hospital</span>
+          <span class="sp-chip" data-zone="residential">🏘️ Residential</span>
+          <span class="sp-chip" data-zone="industrial">🏭 Industrial</span>
+          <span class="sp-chip" data-zone="transit">🚌 Transit</span>
+          <span class="sp-chip" data-zone="commercial">🏬 Commercial</span>
+        </div>
+
+        <div id="sp-map" class="flex-1"></div>
+      </div>
+
+      <!-- Incidents feed -->
+      <div class="sp-panel flex-1 flex flex-col overflow-hidden">
+        <div class="sp-panel-header">
+          <span class="sp-eyebrow">RECENT ACOUSTIC INCIDENTS</span>
+          <span id="sp-feed-count" class="font-mono text-xs" style="color:var(--sp-muted);">0 EVENTS</span>
+        </div>
+        <div class="grid font-mono text-[0.65rem] px-3 pt-2 pb-1 tracking-wide" style="grid-template-columns: 88px 1fr auto auto; color:var(--sp-muted);">
+          <span>TIME</span><span>NODE / CLASS</span><span>COORDS</span><span class="text-right pr-1">STRESS</span>
+        </div>
+        <div id="sp-incident-feed" class="sp-scroll-thin flex-1"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="text-center py-6 font-mono text-[0.65rem]" style="color:var(--sp-muted);">
+    SONICPULSE // H&amp;P PROJECTS HACKATHON GLOBAL CHALLENGES 2026 · SMART CITIES / AI DOMAIN
+  </footer>
+
+  <script src="map.js"></script>
+  <script src="app.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
